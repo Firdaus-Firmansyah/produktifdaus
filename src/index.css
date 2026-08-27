@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   PRINT STYLES — Transforms Neo-Brutalist UI into clean invoice/document
+   ============================================================================ */
+@media print {
+  /* Reset page background and margins */
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide everything except the portal print area */
+  .no-print,
+  header,
+  footer,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Portal print area: clean white document */
+  .print-area {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 40px !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  /* Remove decorative shadows and heavy borders */
+  .print-area * {
+    box-shadow: none !important;
+  }
+
+  /* Clean border styling for print */
+  .print-area .print-border-clean {
+    border: 1px solid #d1d5db !important;
+  }
+
+  .print-area .print-border-none {
+    border: none !important;
+  }
+
+  /* Keep status badge colors readable */
+  .print-area .status-badge-print {
+    border: 1px solid #333 !important;
+    box-shadow: none !important;
+  }
+
+  /* Ensure page breaks work */
+  .print-area {
+    page-break-inside: avoid;
+  }
+
+  /* Typography adjustments for print */
+  .print-area h1,
+  .print-area h2,
+  .print-area h3 {
+    color: black !important;
+  }
+}
