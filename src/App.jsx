@@ -1597,7 +1597,7 @@ const Login = () => {
           </div>
           <h1 className="text-2xl font-black uppercase tracking-tight">Daussaurus</h1>
           <p className="text-xs font-bold text-white/80 uppercase tracking-[0.2em] mt-1">
-            Pro Dashboard
+            Dashboard
           </p>
         </div>
 
