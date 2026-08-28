@@ -1666,6 +1666,8 @@ const Dashboard = ({ user, onLogout }) => {
   const [printingProject, setPrintingProject] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [timeRangeFilter, setTimeRangeFilter] = useState('All Time');
+  const [specificMonthFilter, setSpecificMonthFilter] = useState('All');
 
   // ---- Modal State ----
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -1743,6 +1745,20 @@ const Dashboard = ({ user, onLogout }) => {
     });
   }, [projects]);
 
+  // ---- Available Months for Filter ----
+  const availableMonths = useMemo(() => {
+    const months = new Set();
+    projects.forEach(p => {
+      const d = p.startDate ? new Date(p.startDate) : (p.deadline ? new Date(p.deadline) : null);
+      if (d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        months.add(`${y}-${m}`);
+      }
+    });
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  }, [projects]);
+
   // ---- Filtered Projects ----
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -1751,9 +1767,42 @@ const Dashboard = ({ user, onLogout }) => {
         project.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         project.projectName.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = statusFilter === 'All' || project.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      
+      let matchesTime = true;
+      const dDate = project.startDate ? new Date(project.startDate) : (project.deadline ? new Date(project.deadline) : null);
+      
+      if (dDate) {
+        const now = new Date();
+        if (specificMonthFilter !== 'All') {
+          const [year, month] = specificMonthFilter.split('-');
+          matchesTime = dDate.getFullYear() === parseInt(year) && (dDate.getMonth() + 1) === parseInt(month);
+        } else if (timeRangeFilter !== 'All Time') {
+          const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          
+          if (timeRangeFilter === 'This Week') {
+             const day = startOfToday.getDay();
+             const diff = startOfToday.getDate() - day + (day === 0 ? -6:1);
+             const startOfWeek = new Date(startOfToday.setDate(diff));
+             matchesTime = dDate >= startOfWeek;
+          } else if (timeRangeFilter === 'This Month') {
+             matchesTime = dDate.getFullYear() === now.getFullYear() && dDate.getMonth() === now.getMonth();
+          } else if (timeRangeFilter === 'Last 3 Months') {
+             const threeMonthsAgo = new Date();
+             threeMonthsAgo.setMonth(now.getMonth() - 3);
+             matchesTime = dDate >= threeMonthsAgo;
+          } else if (timeRangeFilter === 'Last 6 Months') {
+             const sixMonthsAgo = new Date();
+             sixMonthsAgo.setMonth(now.getMonth() - 6);
+             matchesTime = dDate >= sixMonthsAgo;
+          } else if (timeRangeFilter === 'This Year') {
+             matchesTime = dDate.getFullYear() === now.getFullYear();
+          }
+        }
+      }
+
+      return matchesSearch && matchesStatus && matchesTime;
     });
-  }, [projects, searchQuery, statusFilter]);
+  }, [projects, searchQuery, statusFilter, timeRangeFilter, specificMonthFilter]);
 
   // ---- CRUD Handlers ----
 
@@ -1941,46 +1990,85 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
 
         {/* ---- TOOLBAR: Search + Filter ---- */}
-        <div className="bg-white border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] p-3 md:p-4 mb-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-          {/* Search Input */}
-          <div className="relative flex-1 w-full sm:max-w-md">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-              strokeWidth={2.5}
-            />
-            <input
-              type="text"
-              placeholder="Search by client or project name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-[#f4f4f0] border-2 border-black text-sm font-semibold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5B5FFF] shadow-[2px_2px_0px_rgba(0,0,0,1)]"
-            />
+        <div className="bg-white border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)] p-3 md:p-4 mb-4 flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full">
+            {/* Search Input */}
+            <div className="relative flex-1 w-full sm:max-w-md">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                strokeWidth={2.5}
+              />
+              <input
+                type="text"
+                placeholder="Search by client or project name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-[#f4f4f0] border-2 border-black text-sm font-semibold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5B5FFF] shadow-[2px_2px_0px_rgba(0,0,0,1)]"
+              />
+            </div>
+
+            {/* Status Filter Buttons */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {['All', ...STATUS_OPTIONS].map((status) => {
+                if (status === 'None') return null;
+                const isActive = statusFilter === status;
+                const style = status !== 'All' ? STATUS_STYLES[status] : null;
+                return (
+                  <button
+                    key={status}
+                    onClick={() => setStatusFilter(status)}
+                    className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide border-2 border-black transition-all duration-100 cursor-pointer
+                      ${
+                        isActive
+                          ? status === 'All'
+                            ? 'bg-black text-white shadow-none translate-x-[2px] translate-y-[2px]'
+                            : `${style?.bg} ${style?.text} shadow-none translate-x-[2px] translate-y-[2px]`
+                          : 'bg-white text-black shadow-[2px_2px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px]'
+                      }
+                    `}
+                  >
+                    {status}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Status Filter Buttons */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {['All', ...STATUS_OPTIONS].map((status) => {
-              const isActive = statusFilter === status;
-              const style = status !== 'All' ? STATUS_STYLES[status] : null;
-              return (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide border-2 border-black transition-all duration-100 cursor-pointer
-                    ${
-                      isActive
-                        ? status === 'All'
-                          ? 'bg-black text-white shadow-none translate-x-[2px] translate-y-[2px]'
-                          : `${style?.bg} ${style?.text} shadow-none translate-x-[2px] translate-y-[2px]`
-                        : 'bg-white text-black shadow-[2px_2px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px]'
-                    }
-                  `}
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center w-full border-t-2 border-gray-200 pt-3">
+             <span className="text-xs font-black uppercase text-gray-500">Filter By Date:</span>
+             <div className="relative">
+                <select 
+                   value={timeRangeFilter}
+                   onChange={(e) => { setTimeRangeFilter(e.target.value); setSpecificMonthFilter('All'); }}
+                   className="pl-3 pr-8 py-1.5 bg-white border-2 border-black text-xs font-bold cursor-pointer appearance-none shadow-[2px_2px_0px_rgba(0,0,0,1)] focus:outline-none focus:ring-2 focus:ring-[#5B5FFF]"
                 >
-                  {status}
-                </button>
-              );
-            })}
+                   <option value="All Time">All Time</option>
+                   <option value="This Week">This Week</option>
+                   <option value="This Month">This Month</option>
+                   <option value="Last 3 Months">Last 3 Months</option>
+                   <option value="Last 6 Months">Last 6 Months</option>
+                   <option value="This Year">This Year</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+             </div>
+             
+             <div className="relative">
+                <select 
+                   value={specificMonthFilter}
+                   onChange={(e) => { setSpecificMonthFilter(e.target.value); setTimeRangeFilter('All Time'); }}
+                   className="pl-3 pr-8 py-1.5 bg-white border-2 border-black text-xs font-bold cursor-pointer appearance-none shadow-[2px_2px_0px_rgba(0,0,0,1)] focus:outline-none focus:ring-2 focus:ring-[#5B5FFF]"
+                >
+                   <option value="All">All Months</option>
+                   {availableMonths.map(ym => {
+                      const [y, m] = ym.split('-');
+                      const dateObj = new Date(y, parseInt(m)-1, 1);
+                      const label = dateObj.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+                      return <option key={ym} value={ym}>{label}</option>
+                   })}
+                </select>
+                <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+             </div>
           </div>
         </div>
 
@@ -2250,11 +2338,7 @@ const Dashboard = ({ user, onLogout }) => {
       <footer className="bg-white border-t-4 border-black mt-8 no-print print:hidden">
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-xs font-bold text-gray-500">
-            © 2026 Daussaurus — Built with React & Tailwind CSS
-          </p>
-          <p className="text-xs font-bold text-gray-400 flex items-center gap-1">
-            <Zap size={12} className="text-[#5B5FFF]" strokeWidth={3} />
-            Neo-Brutalism Design System
+            © 2026 Daussaurus
           </p>
         </div>
       </footer>
